@@ -5,7 +5,8 @@ WORKDIR /app
 # Install dependencies
 FROM base AS deps
 COPY package.json package-lock.json* ./
-RUN npm ci
+# Use npm ci when a lockfile exists (CI/reproducible), fall back to npm install otherwise
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # Build the Next.js app
 FROM base AS builder
