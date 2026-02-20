@@ -18,12 +18,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check required deploy secrets
+        id: precheck
+        env:
+          AZURE_VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+          AZURE_VM_USER: ${{ secrets.AZURE_VM_USER }}
+          AZURE_VM_SSH_KEY: ${{ secrets.AZURE_VM_SSH_KEY }}
+        run: |
+          if [ -z "${AZURE_VM_HOST:-}" ] || [ -z "${AZURE_VM_USER:-}" ] || [ -z "${AZURE_VM_SSH_KEY:-}" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Azure deploy secrets are not fully configured. Skipping deployment."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Start SSH agent
+        if: steps.precheck.outputs.ready == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.AZURE_VM_SSH_KEY }}
 
       - name: Sync repository to VM
+        if: steps.precheck.outputs.ready == 'true'
         env:
           VM_HOST: ${{ secrets.AZURE_VM_HOST }}
           VM_USER: ${{ secrets.AZURE_VM_USER }}
@@ -38,6 +54,7 @@ jobs:
             ./ "${VM_USER}@${VM_HOST}:${AZURE_APP_DIR}"
 
       - name: Write .env on VM
+        if: steps.precheck.outputs.ready == 'true'
         env:
           VM_HOST: ${{ secrets.AZURE_VM_HOST }}
           VM_USER: ${{ secrets.AZURE_VM_USER }}
@@ -50,6 +67,7 @@ jobs:
           fi
 
       - name: Deploy containers
+        if: steps.precheck.outputs.ready == 'true'
         env:
           VM_HOST: ${{ secrets.AZURE_VM_HOST }}
           VM_USER: ${{ secrets.AZURE_VM_USER }}
@@ -61,3 +79,7 @@ jobs:
             docker compose --env-file .env -f infra/docker-compose.yml up -d --build --remove-orphans
             docker compose --env-file .env -f infra/docker-compose.yml ps
           EOFSSH
+
+      - name: Deploy skipped
+        if: steps.precheck.outputs.ready != 'true'
+        run: echo "Skipping Azure deployment because required secrets are missing."
