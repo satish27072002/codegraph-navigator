@@ -1,0 +1,147 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: jobs
+      POSTGRES_USER: jobs
+      POSTGRES_PASSWORD: jobs
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobs -d jobs"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 3s
+
+  neo4j:
+    image: neo4j:5
+    environment:
+      NEO4J_AUTH: neo4j/password
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -a bolt://localhost:7687 -u neo4j -p password 'RETURN 1;' >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 25s
+
+  api_gateway:
+    build:
+      context: ../services/api_gateway
+    environment:
+      POSTGRES_URL: postgresql://jobs:jobs@postgres:5432/jobs
+      REDIS_URL: redis://redis:6379/0
+      NEO4J_URL: bolt://neo4j:7687
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  ingest_service:
+    build:
+      context: ../services/ingest_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+    volumes:
+      - ../data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  graph_service:
+    build:
+      context: ../services/graph_service
+    depends_on:
+      neo4j:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  retrieval_service:
+    build:
+      context: ../services/retrieval_service
+    depends_on:
+      graph_service:
+        condition: service_started
+      llm_service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  llm_service:
+    build:
+      context: ../services/llm_service
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  workers:
+    build:
+      context: ../services/workers
+    command: celery -A celery_app worker -Q pipeline --loglevel=INFO
+    environment:
+      POSTGRES_URL: postgresql://jobs:jobs@postgres:5432/jobs
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A celery_app inspect ping -d celery@$$HOSTNAME | grep -q pong"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 15s
+
+volumes:
+  postgres_data:
+  neo4j_data:

@@ -1,0 +1,7 @@
+fastapi==0.116.1
+uvicorn==0.35.0
+sqlalchemy==2.0.39
+asyncpg==0.30.0
+python-multipart==0.0.20
+celery==5.4.0
+redis==5.2.1

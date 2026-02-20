@@ -61,3 +61,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.tsbuildinfo
+
+# Local runtime data
+data/*
+!data/.gitkeep
