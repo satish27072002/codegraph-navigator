@@ -7,7 +7,8 @@ on:
     paths:
       - "infra/docker-compose.yml"
       - "frontend/**"
-      - "services/**"
+      - "backend/services/**"
+      - "backend/shared/**"
       - ".github/workflows/deploy-azure-vm.yml"
 
 jobs:

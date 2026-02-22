@@ -28,13 +28,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r services/api_gateway/requirements.txt
-          pip install -r services/api_gateway/requirements-dev.txt
+          pip install -r backend/services/api_gateway/requirements.txt
+          pip install -r backend/services/api_gateway/requirements-dev.txt
       - name: Run tests
         env:
           DATABASE_URL: sqlite+aiosqlite:///./test_api_gateway.db
           CORS_ORIGINS: http://localhost:3000
-        run: pytest services/api_gateway/tests -q
+        run: pytest backend/services/api_gateway/tests -q
 
   workers-tests:
     name: Workers Tests
@@ -47,10 +47,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r services/workers/requirements.txt
-          pip install -r services/workers/requirements-dev.txt
+          pip install -r backend/services/workers/requirements.txt
+          pip install -r backend/services/workers/requirements-dev.txt
       - name: Run tests
-        run: pytest services/workers/tests -q
+        run: pytest backend/services/workers/tests -q
 
   frontend-build:
     name: Frontend Build

@@ -16,6 +16,8 @@ dist/
 build/
 *.egg
 .venv/
+.venv*
+.venv-ci-*
 venv/
 env/
 .pytest_cache/

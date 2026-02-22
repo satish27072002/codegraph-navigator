@@ -41,7 +41,7 @@ services:
 
   api_gateway:
     build:
-      context: ../services/api_gateway
+      context: ../backend/services/api_gateway
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     env_file:
       - ../.env
@@ -99,7 +99,7 @@ services:
 
   graph_service:
     build:
-      context: ../services/graph_service
+      context: ../backend/services/graph_service
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002
     env_file:
       - ../.env
@@ -108,7 +108,6 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: password
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
       ENABLE_EMBEDDINGS: ${ENABLE_EMBEDDINGS:-true}
       DEBUG_ENV: ${DEBUG_ENV:-false}
       OPENAI_EMBED_MODEL: ${OPENAI_EMBED_MODEL:-text-embedding-3-small}
@@ -132,7 +131,7 @@ services:
 
   retrieval_service:
     build:
-      context: ../services/retrieval_service
+      context: ../backend/services/retrieval_service
     command: uvicorn app.main:app --host 0.0.0.0 --port 8003
     env_file:
       - ../.env
@@ -142,7 +141,6 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: password
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
       ENABLE_EMBEDDINGS: ${ENABLE_EMBEDDINGS:-true}
       DEBUG_ENV: ${DEBUG_ENV:-false}
       OPENAI_EMBED_MODEL: ${OPENAI_EMBED_MODEL:-text-embedding-3-small}
@@ -163,7 +161,7 @@ services:
 
   llm_service:
     build:
-      context: ../services/llm_service
+      context: ../backend/services/llm_service
     command: uvicorn app.main:app --host 0.0.0.0 --port 8004
     env_file:
       - ../.env
@@ -172,7 +170,6 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: password
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
       OPENAI_TIMEOUT_SEC: ${OPENAI_TIMEOUT_SEC:-30}
     healthcheck:
@@ -184,7 +181,7 @@ services:
 
   workers:
     build:
-      context: ../services/workers
+      context: ../backend/services/workers
     command: celery -A celery_app worker -Q pipeline --loglevel=INFO
     env_file:
       - ../.env
@@ -196,7 +193,6 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: password
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
       ENABLE_EMBEDDINGS: ${ENABLE_EMBEDDINGS:-true}
       # Long-running /graph/embed calls can take many minutes on large repos.
       PIPELINE_EMBED_TIMEOUT_SEC: ${PIPELINE_EMBED_TIMEOUT_SEC:-1800}

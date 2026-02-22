@@ -53,6 +53,55 @@ export interface QueryResult {
   };
 }
 
+export interface KgLinkedEntity {
+  name: string;
+  type: string;
+  score: number;
+}
+
+export interface KgSubgraphNode {
+  id: string;
+  kind?: string;
+  name?: string;
+  type?: string;
+  repo_id?: string;
+  path?: string;
+  text?: string;
+  [key: string]: unknown;
+}
+
+export interface KgSubgraphEdge {
+  source: string;
+  target: string;
+  type?: string;
+  relation_type?: string;
+  confidence?: number;
+  evidence_chunk_id?: string;
+  [key: string]: unknown;
+}
+
+export interface KgEvidence {
+  chunk_id: string;
+  doc_path: string;
+  text: string;
+  score: number;
+}
+
+export interface KgRetrievalTrace {
+  step: string;
+  detail: string;
+}
+
+export interface KgQueryResult {
+  linked_entities: KgLinkedEntity[];
+  subgraph: {
+    nodes: KgSubgraphNode[];
+    edges: KgSubgraphEdge[];
+  };
+  evidence: KgEvidence[];
+  retrieval_trace: KgRetrievalTrace[];
+}
+
 function resolveApiBase(): string {
   const configured = import.meta.env.VITE_API_BASE as string | undefined;
   if (configured && configured.trim()) return configured.trim();
@@ -130,5 +179,17 @@ export function queryRepo(repoId: string, question: string) {
   return request<QueryResult>("/query", {
     method: "POST",
     body: JSON.stringify({ repo_id: repoId, question }),
+  });
+}
+
+export function queryKg(repoId: string, question: string) {
+  return request<KgQueryResult>("/kg/query", {
+    method: "POST",
+    body: JSON.stringify({
+      repo_id: repoId,
+      question,
+      top_k_chunks: 10,
+      hops: 2,
+    }),
   });
 }
