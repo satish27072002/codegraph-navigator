@@ -44,7 +44,7 @@ def test_build_graph_facts_contains_expected_nodes_and_edges(tmp_path: Path) -> 
     greet_fn = by_name_type_path[("greet", "function", "main.py")]
     greeter_cls = by_name_type_path[("Greeter", "class", "main.py")]
     os_module = by_name_type_path[("os", "module", "<external>")]
-    helper_fn = by_name_type_path[("helper", "function", "<external>")]
+    helper_fn = by_name_type_path[("helper", "function", "pkg/util.py")]
 
     edge_set = {(edge["source"], edge["target"], edge["type"]) for edge in edges}
     assert (main_file["id"], greet_fn["id"], "contains") in edge_set
