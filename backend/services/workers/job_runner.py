@@ -494,7 +494,7 @@ def run_pipeline_job(
                 return {"status": "missing"}
             _run_load_graph(job.repo_id)
             job.current_step = "LOAD_GRAPH"
-            job.progress = 75
+            job.progress = 50
 
         with SessionLocal.begin() as session:
             job = _get_locked_job(session, job_uuid)
@@ -502,7 +502,49 @@ def run_pipeline_job(
                 return {"status": "missing"}
             _run_embed(job.repo_id)
             job.current_step = "EMBED"
-            job.progress = 90
+            job.progress = 65
+
+        # --- KG ingestion: extract entities & relations via LLM ---
+        with SessionLocal.begin() as session:
+            job = _get_locked_job(session, job_uuid)
+            if job is None:
+                return {"status": "missing"}
+            job.current_step = "KG_LOAD"
+            job.progress = 70
+
+        try:
+            # Grab repo_id from job inside a session before doing KG work
+            repo_id_for_kg: uuid.UUID | None = None
+            with SessionLocal.begin() as session:
+                job = _get_locked_job(session, job_uuid)
+                if job is None:
+                    return {"status": "missing"}
+                repo_id_for_kg = job.repo_id
+
+            documents = _collect_kg_documents(repo_id_for_kg)
+            if documents:
+                with SessionLocal.begin() as session:
+                    job = _get_locked_job(session, job_uuid)
+                    if job is None:
+                        return {"status": "missing"}
+                    _run_load_kg(
+                        job_id=job_id,
+                        repo_id=job.repo_id,
+                        documents=documents,
+                    )
+                    job.current_step = "KG_LOAD"
+                    job.progress = 90
+            else:
+                logger.info(
+                    "pipeline.kg_load.skipped_no_documents",
+                    extra={"job_id": job_id},
+                )
+        except Exception as kg_exc:
+            # KG ingestion failure is non-fatal; log and continue.
+            logger.warning(
+                "pipeline.kg_load.failed",
+                extra={"job_id": job_id, "error": str(kg_exc)},
+            )
 
         with SessionLocal.begin() as session:
             job = _get_locked_job(session, job_uuid)
@@ -511,7 +553,7 @@ def run_pipeline_job(
 
             job.status = "completed"
             job.progress = 100
-            job.current_step = "EMBED"
+            job.current_step = "KG_LOAD"
             job.error = None
 
         logger.info("job completed", extra={"job_id": job_id})

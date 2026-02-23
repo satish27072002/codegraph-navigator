@@ -100,6 +100,7 @@ class KGQueryResponse(BaseModel):
     subgraph: dict[str, list[dict[str, Any]]]
     evidence: list[KGEvidence]
     retrieval_trace: list[RetrievalTrace]
+    answer: str = ""
 
 
 def _validate_embedding_startup_config() -> str | None:
@@ -322,6 +323,37 @@ def _openai_embed(question: str) -> list[float]:
     return embedding
 
 
+def _openai_chat(messages: list[dict[str, str]], model: str = "gpt-4o-mini", temperature: float = 0.1) -> str:
+    _ensure_embedding_config_ready()
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=400, detail="OPENAI_API_KEY is required for LLM generation.")
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    payload_bytes = json.dumps(payload).encode("utf-8")
+
+    req = urlrequest.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=payload_bytes,
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=OPENAI_TIMEOUT_SEC) as resp:
+            raw = resp.read().decode("utf-8")
+        data = json.loads(raw)
+        return str(data["choices"][0]["message"]["content"]).strip()
+    except Exception as exc:
+        logger.error("openai.chat_failed", extra={"error": str(exc)})
+        raise HTTPException(status_code=502, detail=f"OpenAI chat failed: {str(exc)}") from exc
+
+
 def _kg_vector_chunks(repo_id: str, embedding: list[float], top_k_chunks: int) -> list[dict[str, Any]]:
     with _neo4j_session() as session:
         try:
@@ -329,8 +361,8 @@ def _kg_vector_chunks(repo_id: str, embedding: list[float], top_k_chunks: int) -
                 """
                 CALL db.index.vector.queryNodes($index_name, $top_k, $embedding)
                 YIELD node, score
-                WHERE node:Chunk AND node.repo_id = $repo_id
-                OPTIONAL MATCH (d:Document {repo_id: $repo_id, doc_id: node.doc_id})
+                WHERE node:KGChunk AND node.repo_id = $repo_id
+                OPTIONAL MATCH (d:KGDocument {repo_id: $repo_id, doc_id: node.doc_id})
                 RETURN
                   node.chunk_id AS chunk_id,
                   coalesce(d.path, '') AS doc_path,
@@ -354,9 +386,9 @@ def _kg_vector_chunks(repo_id: str, embedding: list[float], top_k_chunks: int) -
             )
             fallback = session.run(
                 """
-                MATCH (c:Chunk {repo_id: $repo_id})
+                MATCH (c:KGChunk {repo_id: $repo_id})
                 WHERE c.embedding IS NOT NULL AND size(c.embedding) = size($embedding)
-                OPTIONAL MATCH (d:Document {repo_id: $repo_id, doc_id: c.doc_id})
+                OPTIONAL MATCH (d:KGDocument {repo_id: $repo_id, doc_id: c.doc_id})
                 WITH c, d, vector.similarity.cosine(c.embedding, $embedding) AS score
                 RETURN
                   c.chunk_id AS chunk_id,
@@ -392,8 +424,8 @@ def _kg_link_entities(repo_id: str, chunk_rows: list[dict[str, Any]], top_n: int
         result = session.run(
             """
             UNWIND $chunks AS chunk_row
-            MATCH (c:Chunk {repo_id: $repo_id, chunk_id: chunk_row.chunk_id})
-            MATCH (e:Entity {repo_id: $repo_id})-[:MENTIONED_IN]->(c)
+            MATCH (c:KGChunk {repo_id: $repo_id, chunk_id: chunk_row.chunk_id})
+            MATCH (e:KGEntity {repo_id: $repo_id})-[:MENTIONED_IN]->(c)
             WITH
               e,
               count(*) AS mention_count,
@@ -420,9 +452,9 @@ def _kg_fetch_chunks(repo_id: str, chunk_ids: list[str]) -> list[dict[str, Any]]
     with _neo4j_session() as session:
         result = session.run(
             """
-            MATCH (c:Chunk {repo_id: $repo_id})
+            MATCH (c:KGChunk {repo_id: $repo_id})
             WHERE c.chunk_id IN $chunk_ids
-            OPTIONAL MATCH (d:Document {repo_id: $repo_id, doc_id: c.doc_id})
+            OPTIONAL MATCH (d:KGDocument {repo_id: $repo_id, doc_id: c.doc_id})
             RETURN
               c.chunk_id AS chunk_id,
               coalesce(d.path, '') AS doc_path,
@@ -769,6 +801,34 @@ def kg_query(payload: KGQueryRequest) -> KGQueryResponse:
             ),
         )
     )
+
+    # --- Answer Synthesis ---
+    answer = ""
+    if evidence or linked_entities:
+        context_parts = []
+        if linked_entities:
+            context_parts.append("Linked Entities: " + ", ".join([f"{e.name} ({e.type})" for e in linked_entities[:10]]))
+        if evidence:
+            context_parts.append("Context Snippets:\n" + "\n\n".join([f"Path: {ev.doc_path}\n{ev.text}" for ev in evidence[:5]]))
+
+        context_str = "\n\n".join(context_parts)
+        system_prompt = (
+            "You are a codebase intelligence expert. Answer the user's question based ONLY on the provided GraphRAG context. "
+            "If the context is empty or irrelevant, say you don't know based on the graph. "
+            "Be concise and technical."
+        )
+        user_prompt = f"Question: {payload.question}\n\nContext:\n{context_str}"
+
+        try:
+            answer = _openai_chat([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ])
+            trace.append(RetrievalTrace(step="answer_synthesis", detail="Answer generated via LLM."))
+        except Exception as synth_exc:
+            logger.warning("kg.query.synth_failed", extra={"repo_id": repo_id, "error": str(synth_exc)})
+            answer = "Failed to synthesize answer from retrieved context."
+
     logger.info(
         "kg.query.result",
         extra={
@@ -788,4 +848,5 @@ def kg_query(payload: KGQueryRequest) -> KGQueryResponse:
         },
         evidence=evidence,
         retrieval_trace=trace,
+        answer=answer,
     )

@@ -2,18 +2,14 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, ty
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import ReactFlow, {
-  applyEdgeChanges,
-  applyNodeChanges,
-  Background,
-  Controls,
-  type EdgeChange,
-  type NodeChange,
-  MiniMap,
-  MarkerType,
-  type Edge as RFEdge,
-  type Node as RFNode,
-} from "reactflow";
+import {
+  GraphViewEdge,
+  GraphViewNode,
+  QuestionGraph,
+  QuestionGraphEdge,
+  QuestionGraphNode,
+  QuestionGraphNodeType,
+} from "./types";
 import "reactflow/dist/style.css";
 import {
   getJob,
@@ -34,9 +30,12 @@ import {
   repoStatus,
   type Job,
 } from "./api";
+import { JobStatus } from "./types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ProgressBar } from "./components/ui/ProgressBar";
+import { InteractiveKgGraphView, InteractiveQuestionGraph } from "./components/GraphView";
 
 function useLocalStorageState<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
@@ -221,48 +220,55 @@ function Dashboard() {
 
           <section className="cards cards-2">
             <article className="card">
-              <h3>Current Job</h3>
-              <label>
-                Job ID
-                <Input value={jobId} onChange={(e) => setJobId(e.target.value)} placeholder="job UUID" />
-              </label>
-              {jobQ.data && (
-                <div className="job-details">
-                  <p>
-                    Status: <strong>{jobQ.data.status}</strong>
-                  </p>
-                  <p>
-                    Progress: <strong>{jobQ.data.progress}%</strong>
-                  </p>
-                  <p>
-                    Step: <strong>{jobQ.data.current_step}</strong>
-                  </p>
-                  <p>Updated: {formatTime(jobQ.data.updated_at)}</p>
-                  {jobQ.data.error && <p className="error">{jobQ.data.error}</p>}
-                </div>
-              )}
+              <h3>Repo Status</h3>
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="text-sm text-slate-400 mb-1 block">Active Repo ID</span>
+                  <Input value={repoId} onChange={(e) => setRepoId(e.target.value)} placeholder="repo UUID" />
+                </label>
+                {repoStatusQ.data && (
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Nodes</p>
+                      <p className="text-xl font-bold text-blue-400">{repoStatusQ.data.indexed_node_count}</p>
+                    </div>
+                    <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Edges</p>
+                      <p className="text-xl font-bold text-indigo-400">{repoStatusQ.data.indexed_edge_count}</p>
+                    </div>
+                    <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Embedded</p>
+                      <p className="text-xl font-bold text-violet-400">{repoStatusQ.data.embedded_nodes}</p>
+                    </div>
+                    <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">KG Index</p>
+                      <p className={`text-xl font-bold ${repoStatusQ.data.embeddings_exist ? "text-emerald-400" : "text-amber-400"}`}>
+                        {repoStatusQ.data.embeddings_exist ? "Active" : "None"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </article>
 
-            <article className="card">
-              <h3>Repo Status</h3>
-              <label>
-                Repo ID
-                <Input value={repoId} onChange={(e) => setRepoId(e.target.value)} placeholder="repo UUID" />
-              </label>
-              {repoStatusQ.data && (
-                <div className="job-details">
-                  <p>
-                    Indexed Nodes: <strong>{repoStatusQ.data.indexed_node_count}</strong>
+            <article className="card flex flex-col justify-center">
+              <h3>Ingestion Progress</h3>
+              {jobQ.data ? (
+                <div className="mt-2">
+                  <ProgressBar
+                    status={jobQ.data.status as import("./components/ui/ProgressBar").JobStatus}
+                    progress={jobQ.data.progress ?? 0}
+                    currentStep={jobQ.data.current_step ?? ""}
+                    error={jobQ.data.error}
+                  />
+                  <p className="text-xs text-slate-500 mt-3 text-center">
+                    Updating: {formatTime(jobQ.data.updated_at)}
                   </p>
-                  <p>
-                    Indexed Edges: <strong>{repoStatusQ.data.indexed_edge_count}</strong>
-                  </p>
-                  <p>
-                    Embedded Nodes: <strong>{repoStatusQ.data.embedded_nodes}</strong>
-                  </p>
-                  <p>
-                    Embeddings: <strong>{repoStatusQ.data.embeddings_exist ? "Yes" : "No"}</strong>
-                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-8 opacity-40">
+                  <p className="text-sm">No active ingestion job</p>
+                  <p className="text-xs mt-1">Status will appear here during processing</p>
                 </div>
               )}
             </article>
@@ -305,26 +311,25 @@ function Dashboard() {
         </div>
       </section>
 
-      <section className="card">
-        <h2>Ask (Level-2 Merged)</h2>
-        <label>
-          Repo ID
-          <Input value={repoId} onChange={(e) => setRepoId(e.target.value)} placeholder="repo UUID" />
-        </label>
-        <label>
-          Question
-          <Textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            rows={4}
-            placeholder="Ask about architecture, dependencies, key classes, or where a function is used..."
-          />
-        </label>
-        <Button onClick={() => queryM.mutate()} disabled={queryM.isPending}>
-          {queryM.isPending ? "Asking..." : "Ask"}
-        </Button>
-        {queryM.error && <p className="error">{(queryM.error as Error).message}</p>}
-      </section>
+      {/* Ask section — only visible after a repo is ingested */}
+      {repoId && (
+        <section className="card">
+          <h2>Ask a Question</h2>
+          <label>
+            Question
+            <Textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              rows={4}
+              placeholder="Ask about architecture, dependencies, key classes, or where a function is used..."
+            />
+          </label>
+          <Button onClick={() => queryM.mutate()} disabled={queryM.isPending}>
+            {queryM.isPending ? "Asking..." : "Ask"}
+          </Button>
+          {queryM.error && <p className="error">{(queryM.error as Error).message}</p>}
+        </section>
+      )}
 
       <section className="card">
         <h2>Answer</h2>
@@ -396,50 +401,6 @@ function formatSubgraphEdge(edge: KgSubgraphEdge, nodeNameById: Map<string, stri
   return `${source} --(${detail})--> ${target}`;
 }
 
-type GraphViewNodeKind = "question" | "entity" | "evidence";
-
-type GraphViewNode = {
-  id: string;
-  kind: GraphViewNodeKind;
-  label: string;
-  subLabel?: string;
-  x: number;
-  y: number;
-  entityName?: string;
-  evidenceId?: string;
-};
-
-type GraphViewEdge = {
-  id: string;
-  source: string;
-  target: string;
-  label: "linked" | "supported_by" | "evidence";
-};
-
-type QuestionGraphNodeType = "question" | "entity" | "evidence" | "code";
-
-interface QuestionGraphNode {
-  id: string;
-  type: QuestionGraphNodeType;
-  label: string;
-  subtitle?: string;
-  ref_id?: string;
-  source?: "kg" | "code" | "merged";
-  meta?: Record<string, unknown>;
-}
-
-interface QuestionGraphEdge {
-  id: string;
-  source: string;
-  target: string;
-  label: string;
-  meta?: Record<string, unknown>;
-}
-
-interface QuestionGraph {
-  nodes: QuestionGraphNode[];
-  edges: QuestionGraphEdge[];
-}
 
 const QG_MAX_NODES = 30;
 const QG_MAX_EDGES = 50;
@@ -1202,11 +1163,25 @@ function Level2AnswerPanel({
 
   const hasAny = Boolean(kgResult || codeResult || kgError || codeError);
   if (!hasAny) {
-    return <p className="muted">Ask a question to combine KG and code retrieval into a question-centric answer.</p>;
+    return <p className="muted">Ask a question to combine KG and code retrieval into a synthesized, question-centric answer.</p>;
   }
 
   return (
     <div className="result-box">
+      {kgResult?.answer && (
+        <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-violet-500/10 to-transparent border border-violet-500/20 shadow-lg">
+          <h3 className="text-violet-300 mb-2 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+            Synthesized Answer
+          </h3>
+          <div className="prose prose-invert max-w-none text-gray-100 leading-relaxed">
+            {kgResult.answer.split('\n').map((line, i) => (
+              <p key={i} className="mb-2 last:mb-0">{line}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
       <h3>Question</h3>
       <p>{question}</p>
 
@@ -1502,48 +1477,52 @@ function Level2QuestionWorkspace({
     <div className="kg-answer-columns">
       <div className="kg-answer-left">
         <section className="kg-panel">
-          <h4>Graph View</h4>
-          <QuestionGraphView
-            graph={questionGraph}
-            layout={layout}
-            selectedNodeId={selectedNodeId}
-            selectedEdgeId={selectedEdgeId}
-            onSelectNode={(nodeId) => {
-              setSelectedEdgeId(null);
-              setSelectedNodeId((prev) => (prev === nodeId ? null : nodeId));
-            }}
-            onSelectEdge={(edgeId) => {
-              setSelectedNodeId(null);
-              setSelectedEdgeId((prev) => (prev === edgeId ? null : edgeId));
-            }}
-          />
+          <div className="flex items-center justify-between mb-2">
+            <h4>Graph View (Interactive)</h4>
+          </div>
+          <div className="rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-inner" style={{ height: "650px" }}>
+            <QuestionGraphView
+              graph={questionGraph}
+              layout={layout}
+              selectedNodeId={selectedNodeId}
+              selectedEdgeId={selectedEdgeId}
+              onSelectNode={(nodeId) => {
+                setSelectedEdgeId(null);
+                setSelectedNodeId((prev) => (prev === nodeId ? null : nodeId));
+              }}
+              onSelectEdge={(edgeId) => {
+                setSelectedNodeId(null);
+                setSelectedEdgeId((prev) => (prev === edgeId ? null : edgeId));
+              }}
+            />
+          </div>
         </section>
       </div>
 
       <div className="kg-answer-right">
-            <section className="kg-panel">
-              <h4>Details / Evidence</h4>
-              {selectedEdge ? (
-                <div className="kg-selected-edge-card">
-                  <p className="muted small">Selected edge</p>
+        <section className="kg-panel">
+          <h4>Details / Evidence</h4>
+          {selectedEdge ? (
+            <div className="kg-selected-edge-card">
+              <p className="muted small">Selected edge</p>
               <p>
                 <strong>{nodeById.get(selectedEdge.source)?.label ?? selectedEdge.source}</strong> --({selectedEdge.label})--&gt;{" "}
-                    <strong>{nodeById.get(selectedEdge.target)?.label ?? selectedEdge.target}</strong>
-                  </p>
-                  {selectedEdge.label === "supported_by" && selectedEdgeEvidence ? (
-                    <article className="kg-evidence-item active">
-                      <div className="kg-evidence-head">
-                        <strong>{selectedEdgeEvidence.doc_path || selectedEdgeEvidence.chunk_id}</strong>
-                        <span>{selectedEdgeEvidence.score.toFixed(3)}</span>
-                      </div>
-                      <pre className="kg-evidence-text">{selectedEdgeEvidence.text}</pre>
-                    </article>
-                  ) : null}
-                </div>
+                <strong>{nodeById.get(selectedEdge.target)?.label ?? selectedEdge.target}</strong>
+              </p>
+              {selectedEdge.label === "supported_by" && selectedEdgeEvidence ? (
+                <article className="kg-evidence-item active">
+                  <div className="kg-evidence-head">
+                    <strong>{selectedEdgeEvidence.doc_path || selectedEdgeEvidence.chunk_id}</strong>
+                    <span>{selectedEdgeEvidence.score.toFixed(3)}</span>
+                  </div>
+                  <pre className="kg-evidence-text">{selectedEdgeEvidence.text}</pre>
+                </article>
               ) : null}
+            </div>
+          ) : null}
 
-              {selectedNode ? (
-                <div className="result-box">
+          {selectedNode ? (
+            <div className="result-box">
               <h3>{selectedNode.label}</h3>
               <p className="muted small">
                 type={selectedNode.type}
@@ -1617,8 +1596,8 @@ function Level2QuestionWorkspace({
                         (selectedPath ? containsCaseInsensitive(ev.doc_path, selectedPath) : false)
                       );
                     }).length === 0 && (
-                      <p className="muted">No matching snippet retrieved.</p>
-                    )}
+                        <p className="muted">No matching snippet retrieved.</p>
+                      )}
                   </div>
                 </>
               )}
@@ -1649,28 +1628,28 @@ function Level2QuestionWorkspace({
                     <p className="muted">No matching snippet retrieved.</p>
                   ) : (
                     <>
-                  {(codeResult?.citations ?? []).includes(selectedNode.ref_id) && (
-                    <p className="muted small">Referenced by code citations.</p>
-                  )}
-                  {codeSnippetMap.get(selectedNode.ref_id) || codeNodeMap.get(selectedNode.ref_id) ? (
-                    <article className="kg-evidence-item">
-                      <div className="kg-evidence-head">
-                        <strong>
-                          {codeSnippetMap.get(selectedNode.ref_id)?.path ||
-                            codeNodeMap.get(selectedNode.ref_id)?.path ||
-                            selectedNode.ref_id}
-                        </strong>
-                        <span>{String(selectedNode.meta?.anchor ? "anchor" : "neighbor")}</span>
-                      </div>
-                      <pre className="kg-evidence-text">
-                        {codeSnippetMap.get(selectedNode.ref_id)?.code_snippet ||
-                          codeNodeMap.get(selectedNode.ref_id)?.code_snippet ||
-                          "No code snippet available."}
-                      </pre>
-                    </article>
-                  ) : (
-                    <p className="muted">No matching snippet retrieved.</p>
-                  )}
+                      {(codeResult?.citations ?? []).includes(selectedNode.ref_id) && (
+                        <p className="muted small">Referenced by code citations.</p>
+                      )}
+                      {codeSnippetMap.get(selectedNode.ref_id) || codeNodeMap.get(selectedNode.ref_id) ? (
+                        <article className="kg-evidence-item">
+                          <div className="kg-evidence-head">
+                            <strong>
+                              {codeSnippetMap.get(selectedNode.ref_id)?.path ||
+                                codeNodeMap.get(selectedNode.ref_id)?.path ||
+                                selectedNode.ref_id}
+                            </strong>
+                            <span>{String(selectedNode.meta?.anchor ? "anchor" : "neighbor")}</span>
+                          </div>
+                          <pre className="kg-evidence-text">
+                            {codeSnippetMap.get(selectedNode.ref_id)?.code_snippet ||
+                              codeNodeMap.get(selectedNode.ref_id)?.code_snippet ||
+                              "No code snippet available."}
+                          </pre>
+                        </article>
+                      ) : (
+                        <p className="muted">No matching snippet retrieved.</p>
+                      )}
                     </>
                   )}
                 </>
@@ -1797,7 +1776,7 @@ function QuestionGraphView({
     const seedIds = new Set<string>();
     if (selectedNodeId) seedIds.add(selectedNodeId);
     if (selectedEdgeId) {
-      const selected = graph.edges.find((edge) => edge.id === selectedEdgeId);
+      const selected = graph.edges.find((edge: QuestionGraphEdge) => edge.id === selectedEdgeId);
       if (selected) {
         seedIds.add(selected.source);
         seedIds.add(selected.target);
@@ -1817,92 +1796,6 @@ function QuestionGraphView({
     return { nodes, edges };
   }, [focusSelection, graph, selectedEdgeId, selectedNodeId]);
 
-  const visibleNodeIds = useMemo(() => new Set(visibleGraph.nodes.map((node) => node.id)), [visibleGraph.nodes]);
-  const visibleLayoutNodes = useMemo(
-    () => layout.nodes.filter((node) => visibleNodeIds.has(node.id)),
-    [layout.nodes, visibleNodeIds],
-  );
-
-  const flowNodes = useMemo<RFNode[]>(
-    () =>
-      visibleLayoutNodes.map((node) => {
-        const selected = selectedNodeId === node.id;
-        const palette =
-          node.type === "question"
-            ? { fill: "#132646", stroke: "#68b6ff" }
-            : node.type === "entity"
-              ? { fill: "#102d2c", stroke: "#47d9b2" }
-              : node.type === "code"
-                ? { fill: "#2b1b10", stroke: "#f0a85c" }
-                : { fill: "#1a1433", stroke: "#b18bf6" };
-        return {
-          id: node.id,
-          position: { x: node.x - 88, y: node.y - 32 },
-          draggable: true,
-          selectable: true,
-          data: {
-            label: (
-              <div className="qg-node-content">
-                <div className="qg-node-title">{truncate(node.label, 26)}</div>
-                {node.subtitle ? <div className="qg-node-subtitle">{truncate(node.subtitle, 26)}</div> : null}
-              </div>
-            ),
-            nodeType: node.type,
-          },
-          style: {
-            width: 176,
-            minHeight: 64,
-            borderRadius: 10,
-            border: `2px solid ${selected ? "#f6fbff" : palette.stroke}`,
-            background: palette.fill,
-            color: "#eef5ff",
-            boxShadow: selected ? "0 0 0 2px rgba(104,182,255,0.35)" : "none",
-            padding: "8px 10px",
-          },
-        } satisfies RFNode;
-      }),
-    [visibleLayoutNodes, selectedNodeId],
-  );
-
-  const flowEdges = useMemo<RFEdge[]>(
-    () =>
-      visibleGraph.edges.map((edge) => {
-        const active = selectedEdgeId === edge.id;
-        const stroke =
-          edge.label === "linked" ? "#68b6ff" : edge.label === "supported_by" ? "#47d9b2" : edge.label === "code_anchor" ? "#f0a85c" : "#b8c8df";
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          type: "smoothstep",
-          label: edge.label,
-          animated: edge.label === "linked" || edge.label === "supported_by",
-          style: {
-            stroke: active ? "#f6fbff" : stroke,
-            strokeWidth: active ? 2.8 : 1.8,
-          },
-          labelStyle: {
-            fill: "#cde0ff",
-            fontSize: 10,
-            fontWeight: 600,
-          },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: active ? "#f6fbff" : stroke,
-          },
-        } satisfies RFEdge;
-      }),
-    [visibleGraph.edges, selectedEdgeId],
-  );
-
-  const [rfNodes, setRfNodes] = useState<RFNode[]>([]);
-  const [rfEdges, setRfEdges] = useState<RFEdge[]>([]);
-
-  useEffect(() => {
-    setRfNodes(flowNodes);
-    setRfEdges(flowEdges);
-  }, [flowNodes, flowEdges]);
-
   useEffect(() => {
     setFocusSelection(false);
   }, [graph.nodes, graph.edges]);
@@ -1914,12 +1807,6 @@ function QuestionGraphView({
   return (
     <div className="kg-graph-view-wrap">
       <div className="qg-toolbar">
-        <div className="qg-legend">
-          <span className="qg-legend-item"><i className="qg-dot question" />Question</span>
-          <span className="qg-legend-item"><i className="qg-dot entity" />Entity</span>
-          <span className="qg-legend-item"><i className="qg-dot code" />Code</span>
-          <span className="qg-legend-item"><i className="qg-dot evidence" />Evidence</span>
-        </div>
         <div className="qg-actions">
           <Button
             type="button"
@@ -1944,38 +1831,14 @@ function QuestionGraphView({
         </div>
       </div>
 
-      <div className="qg-reactflow-shell">
-        <ReactFlow
-          nodes={rfNodes}
-          edges={rfEdges}
-          onNodesChange={(changes: NodeChange[]) => setRfNodes((prev) => applyNodeChanges(changes, prev))}
-          onEdgesChange={(changes: EdgeChange[]) => setRfEdges((prev) => applyEdgeChanges(changes, prev))}
-          onNodeClick={(_, node) => onSelectNode(node.id)}
-          onEdgeClick={(_, edge) => onSelectEdge(edge.id)}
-          fitView
-          panOnDrag
-          zoomOnScroll
-          nodesDraggable
-          elementsSelectable
-          className="qg-reactflow"
-          defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background color="#1d3355" gap={24} />
-          <MiniMap
-            pannable
-            zoomable
-            nodeColor={(node) => {
-              const nodeType = String(node.data?.nodeType ?? "");
-              if (nodeType === "question") return "#68b6ff";
-              if (nodeType === "entity") return "#47d9b2";
-              if (nodeType === "code") return "#f0a85c";
-              return "#b18bf6";
-            }}
-            maskColor="rgba(6, 8, 15, 0.55)"
-          />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+      <div className="w-full" style={{ minHeight: "650px" }}>
+        <InteractiveQuestionGraph
+          graph={visibleGraph}
+          selectedNodeId={selectedNodeId}
+          selectedEdgeId={selectedEdgeId}
+          onSelectNode={onSelectNode}
+          onSelectEdge={onSelectEdge}
+        />
       </div>
       {focusSelection && <p className="muted small">Showing selection and 1-hop neighbors.</p>}
     </div>
@@ -2164,28 +2027,28 @@ function KgQueryResultPanel({ data, question }: { data: KgQueryResult; question:
           {!visibleLinkedEntities.length ? (
             <p className="muted small">No linked entities after filtering. Enable "Show low-signal entities" to view all.</p>
           ) : (
-          <div className="kg-chips">
-            {visibleLinkedEntities.map((entity: KgLinkedEntity) => {
-              const isSelected = selectedEntityName?.toLowerCase() === entity.name.toLowerCase();
-              return (
-              <button
-                key={`${entity.name}-${entity.type}`}
-                type="button"
-                className={`kg-chip ${isSelected ? "active" : ""}`}
-                onClick={() => {
-                  setSelectedEntityName((prev) =>
-                    prev?.toLowerCase() === entity.name.toLowerCase() ? null : entity.name,
-                  );
-                  setShowAllEvidence(false);
-                }}
-              >
-                <span>{entity.name}</span>
-                <small>{entity.type}</small>
-                <em>{entity.score.toFixed(3)}</em>
-              </button>
-            );
-            })}
-          </div>
+            <div className="kg-chips">
+              {visibleLinkedEntities.map((entity: KgLinkedEntity) => {
+                const isSelected = selectedEntityName?.toLowerCase() === entity.name.toLowerCase();
+                return (
+                  <button
+                    key={`${entity.name}-${entity.type}`}
+                    type="button"
+                    className={`kg-chip ${isSelected ? "active" : ""}`}
+                    onClick={() => {
+                      setSelectedEntityName((prev) =>
+                        prev?.toLowerCase() === entity.name.toLowerCase() ? null : entity.name,
+                      );
+                      setShowAllEvidence(false);
+                    }}
+                  >
+                    <span>{entity.name}</span>
+                    <small>{entity.type}</small>
+                    <em>{entity.score.toFixed(3)}</em>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </section>
 
@@ -2196,23 +2059,6 @@ function KgQueryResultPanel({ data, question }: { data: KgQueryResult; question:
               <KgGraphView
                 question={question}
                 graph={graphView}
-                selectedEntityName={selectedEntityName}
-                selectedEvidenceId={selectedEvidenceId}
-                selectedEdgeId={selectedGraphEdgeId}
-                onSelectEntity={(entityName) => {
-                  setSelectedGraphEdgeId(null);
-                  setSelectedEntityName((prev) => (prev?.toLowerCase() === entityName.toLowerCase() ? null : entityName));
-                  setShowAllEvidence(false);
-                }}
-                onSelectEvidence={(evidenceId) => {
-                  setSelectedGraphEdgeId(null);
-                  setSelectedEvidenceId(evidenceId);
-                  setSelectedEntityName(null);
-                  setShowAllEvidence(false);
-                }}
-                onSelectEdge={(edgeId) => {
-                  setSelectedGraphEdgeId((prev) => (prev === edgeId ? null : edgeId));
-                }}
               />
             </section>
 
@@ -2371,109 +2217,22 @@ function KgQueryResultPanel({ data, question }: { data: KgQueryResult; question:
 function KgGraphView({
   question,
   graph,
-  selectedEntityName,
-  selectedEvidenceId,
-  selectedEdgeId,
-  onSelectEntity,
-  onSelectEvidence,
-  onSelectEdge,
 }: {
   question: string;
   graph: { width: number; height: number; nodes: GraphViewNode[]; edges: GraphViewEdge[] };
-  selectedEntityName: string | null;
-  selectedEvidenceId: string | null;
-  selectedEdgeId: string | null;
-  onSelectEntity: (entityName: string) => void;
-  onSelectEvidence: (evidenceId: string) => void;
-  onSelectEdge: (edgeId: string) => void;
 }) {
-  const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes]);
-
   if (!graph.nodes.length) {
     return <p className="muted">No graph data returned.</p>;
   }
 
-  const questionPreview = truncate(question, 90);
+  const questionPreview = question.length > 90 ? question.substring(0, 87) + "..." : question;
 
   return (
     <div className="kg-graph-view-wrap">
       <p className="muted small">Question: {questionPreview}</p>
-      <svg viewBox={`0 0 ${graph.width} ${graph.height}`} className="kg-query-graph-svg" role="img" aria-label="kg-query-graph">
-        <defs>
-          <marker id="kg-graph-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#8eb5ea" />
-          </marker>
-        </defs>
-
-        {graph.edges.map((edge) => {
-          const source = nodeById.get(edge.source);
-          const target = nodeById.get(edge.target);
-          if (!source || !target) return null;
-          const midX = (source.x + target.x) / 2;
-          const midY = (source.y + target.y) / 2;
-          const stroke = edge.label === "supported_by" ? "#47d9b2" : edge.label === "evidence" ? "#d6b3ff" : "#68b6ff";
-          const active = selectedEdgeId === edge.id;
-          return (
-            <g key={edge.id} className="kg-query-edge clickable" onClick={() => onSelectEdge(edge.id)}>
-              <line
-                x1={source.x + 76}
-                y1={source.y}
-                x2={target.x - 76}
-                y2={target.y}
-                stroke={stroke}
-                strokeWidth={active ? 2.8 : 1.8}
-                opacity={active ? 1 : 0.9}
-                markerEnd="url(#kg-graph-arrow)"
-              />
-              <text x={midX} y={midY - 4} className="kg-query-edge-label">
-                {edge.label}
-              </text>
-            </g>
-          );
-        })}
-
-        {graph.nodes.map((node) => {
-          const isEntity = node.kind === "entity";
-          const isEvidence = node.kind === "evidence";
-          const isQuestion = node.kind === "question";
-          const selectedEntity =
-            isEntity && selectedEntityName && node.entityName?.toLowerCase() === selectedEntityName.toLowerCase();
-          const selectedEvidence = isEvidence && selectedEvidenceId && node.evidenceId === selectedEvidenceId;
-          const active = Boolean(selectedEntity || selectedEvidence);
-          const fill = isQuestion ? "#132646" : isEntity ? "#102d2c" : "#1a1433";
-          const stroke = isQuestion ? "#68b6ff" : isEntity ? "#47d9b2" : "#b18bf6";
-          return (
-            <g
-              key={node.id}
-              className={`kg-query-node ${isEntity || isEvidence ? "clickable" : ""}`}
-              onClick={() => {
-                if (node.kind === "entity" && node.entityName) onSelectEntity(node.entityName);
-                if (node.kind === "evidence" && node.evidenceId) onSelectEvidence(node.evidenceId);
-              }}
-            >
-              <rect
-                x={node.x - 72}
-                y={node.y - 28}
-                rx={10}
-                ry={10}
-                width={144}
-                height={56}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={active ? 2.8 : 1.5}
-              />
-              <text x={node.x} y={node.y - 4} textAnchor="middle" className="kg-query-node-label">
-                {node.label}
-              </text>
-              {node.subLabel && (
-                <text x={node.x} y={node.y + 14} textAnchor="middle" className="kg-query-node-sub">
-                  {truncate(node.subLabel, 22)}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+      <div className="w-full h-full min-h-[500px] mt-4">
+        <InteractiveKgGraphView graph={graph} />
+      </div>
     </div>
   );
 }
@@ -2571,29 +2330,26 @@ function JobsPage() {
         </label>
         {jobsQ.error && <p className="error">{(jobsQ.error as Error).message}</p>}
         {!repoId && <p className="muted">Run ingest on Dashboard first, or paste a repo id to inspect jobs.</p>}
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Job</th>
-                <th>Status</th>
-                <th>Progress</th>
-                <th>Step</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(jobsQ.data ?? []).map((job) => (
-                <tr key={job.job_id}>
-                  <td>{job.job_id}</td>
-                  <td>{job.status}</td>
-                  <td>{job.progress}%</td>
-                  <td>{job.current_step}</td>
-                  <td>{formatTime(job.updated_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4 mt-6">
+          {!jobsQ.data?.length && repoId && !jobsQ.isLoading && (
+            <p className="muted">No jobs found for this repository.</p>
+          )}
+          <ul className="space-y-3">
+            {(jobsQ.data ?? []).map((job) => (
+              <li key={job.job_id} className="card p-4 space-y-3 border border-[#2c3e5a] bg-[#0c162d] shadow-lg rounded-xl">
+                <div className="flex justify-between items-center mb-1 text-sm text-[#8eb5ea]">
+                  <span><strong>{job.job_id.slice(0, 8)}</strong> — {job.job_type}</span>
+                  <span className="text-xs text-[#6e85a3]">{formatTime(job.updated_at)}</span>
+                </div>
+                <ProgressBar
+                  status={job.status as JobStatus}
+                  progress={job.progress ?? 0}
+                  currentStep={job.current_step ?? ""}
+                  error={job.error}
+                />
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
     </motion.div>

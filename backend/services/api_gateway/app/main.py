@@ -28,6 +28,7 @@ from .schemas import (
     QueryRequest,
     QueryResponse,
     RepoStatusResponse,
+    KGStatusResponse,
 )
 
 
@@ -362,3 +363,10 @@ def repo_status(repo_id: uuid.UUID) -> RepoStatusResponse:
     graph_url = f"{settings.graph_service_url.rstrip('/')}/graph/repo/status"
     payload = _get_json(graph_url, {"repo_id": str(repo_id)})
     return RepoStatusResponse.model_validate(payload)
+
+
+@app.get("/repos/{repo_id}/kg-status", response_model=KGStatusResponse)
+def kg_status(repo_id: uuid.UUID) -> KGStatusResponse:
+    graph_url = f"{settings.graph_service_url.rstrip('/')}/kg/status"
+    payload = _get_json(graph_url, {"repo_id": str(repo_id)})
+    return KGStatusResponse.model_validate(payload)

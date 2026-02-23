@@ -8,7 +8,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jobs -d jobs"]
+      test: [ "CMD-SHELL", "pg_isready -U jobs -d jobs" ]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -17,7 +17,7 @@ services:
   redis:
     image: redis:7-alpine
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -27,13 +27,16 @@ services:
     image: neo4j:5
     environment:
       NEO4J_AUTH: neo4j/password
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
     ports:
       - "7474:7474"
       - "7687:7687"
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -a bolt://neo4j:7687 -u neo4j -p password 'RETURN 1;' >/dev/null 2>&1 || exit 1"]
+      test: [ "CMD-SHELL", "cypher-shell -a bolt://neo4j:7687 -u neo4j -p password 'RETURN 1;' >/dev/null 2>&1 || exit 1" ]
       interval: 10s
       timeout: 10s
       retries: 20
@@ -73,7 +76,7 @@ services:
     volumes:
       - ../data:/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()" ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -91,7 +94,7 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:3000/" ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -120,10 +123,12 @@ services:
     depends_on:
       neo4j:
         condition: service_healthy
+    ports:
+      - "8002:8002"
     volumes:
       - ../data:/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health').read()"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health').read()" ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -152,8 +157,10 @@ services:
         condition: service_started
       llm_service:
         condition: service_started
+    ports:
+      - "8003:8003"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health').read()"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health').read()" ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -173,7 +180,7 @@ services:
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
       OPENAI_TIMEOUT_SEC: ${OPENAI_TIMEOUT_SEC:-30}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health').read()"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health').read()" ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -207,7 +214,7 @@ services:
     volumes:
       - ../data:/data
     healthcheck:
-      test: ["CMD-SHELL", "celery -A celery_app inspect ping -d celery@$$HOSTNAME | grep -q pong"]
+      test: [ "CMD-SHELL", "celery -A celery_app inspect ping -d celery@$$HOSTNAME | grep -q pong" ]
       interval: 15s
       timeout: 10s
       retries: 20

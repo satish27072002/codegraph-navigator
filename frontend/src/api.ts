@@ -100,6 +100,7 @@ export interface KgQueryResult {
   };
   evidence: KgEvidence[];
   retrieval_trace: KgRetrievalTrace[];
+  answer?: string;
 }
 
 function resolveApiBase(): string {

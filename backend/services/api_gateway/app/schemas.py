@@ -45,3 +45,12 @@ class RepoStatusResponse(BaseModel):
     indexed_edge_count: int
     embedded_nodes: int
     embeddings_exist: bool
+
+
+class KGStatusResponse(BaseModel):
+    docs: int
+    chunks: int
+    entities: int
+    relations: int
+    embedded_chunks: int
+    embedded_entities: int
