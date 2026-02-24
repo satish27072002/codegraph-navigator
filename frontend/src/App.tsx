@@ -115,10 +115,7 @@ function Shell({ children }: { children: ReactNode }) {
       <header className="topbar">
         <div className="topbar-brand">
           <LogoMark />
-          <div className="topbar-title">
-            <p className="eyebrow">CodeGraph Navigator</p>
-            <h1>Repository Intelligence</h1>
-          </div>
+          <span className="topbar-brand-name">CodeGraph Navigator</span>
         </div>
         <nav>
           <Link className={location.pathname === "/dashboard" ? "active" : ""} to="/dashboard">
@@ -245,6 +242,24 @@ const NODE_TYPE_COLOR: Record<string, string> = {
 };
 
 // ──────────────────────────────────────────────────────────
+// Movie quotes — rotate randomly, session-only hint line
+// ──────────────────────────────────────────────────────────
+const MOVIE_QUOTES = [
+  `"May the flow be with you." — Star Wars`,
+  `"There is no codebase. Only code." — The Matrix`,
+  `"I'll be back... once the graph is ready." — Terminator`,
+  `"You can't handle the truth… of this dependency tree." — A Few Good Men`,
+  `"To infinite loops and beyond." — Toy Story`,
+  `"One does not simply walk into the codebase." — Lord of the Rings`,
+  `"Why so functions?" — The Dark Knight`,
+  `"Keep your functions close, but your dependencies closer." — The Godfather`,
+  `"It's not a bug — it's an undocumented feature." — Every Developer Ever`,
+  `"Go ahead, make my query." — Dirty Harry`,
+  `"With great code comes great responsibility." — Spider-Man`,
+  `"I feel the need — the need for speed… in O(1) time." — Top Gun`,
+];
+
+// ──────────────────────────────────────────────────────────
 // Chevron icon (inline)
 // ──────────────────────────────────────────────────────────
 function ChevronDown({ open }: { open: boolean }) {
@@ -266,11 +281,9 @@ function ChevronDown({ open }: { open: boolean }) {
 // AnswerPanel
 // ──────────────────────────────────────────────────────────
 function AnswerPanel({
-  question,
   result,
   error,
 }: {
-  question: string;
   result: UnifiedQueryResult | null;
   error: string | null;
 }) {
@@ -308,9 +321,6 @@ function AnswerPanel({
         <div className="answer-card-title">
           <span className="answer-card-pulse" />
           Answer
-          <span style={{ fontSize: 12, color: "#8474a8", fontWeight: 400 }}>
-            — {truncate(question, 60)}
-          </span>
         </div>
         <ChevronDown open={open} />
       </div>
@@ -407,7 +417,7 @@ function GraphWorkspace({
             <strong>{graphStats.edges}</strong> edges
           </span>
         </div>
-        <span style={{ fontSize: 11, color: "#8474a8" }}>
+        <span style={{ fontSize: 11, color: "var(--text-3)" }}>
           Click a node to inspect · Scroll to zoom · Drag to pan
         </span>
       </div>
@@ -773,7 +783,7 @@ function StageIngesting({
             error={jobData.error}
           />
           {jobData.updated_at && (
-            <p style={{ fontSize: 11, color: "#8474a8", textAlign: "center", marginTop: 4 }}>
+            <p style={{ fontSize: 11, color: "var(--text-3)", textAlign: "center", marginTop: 4 }}>
               Last update: {formatTime(jobData.updated_at)}
             </p>
           )}
@@ -799,6 +809,7 @@ function StageIngesting({
 // ──────────────────────────────────────────────────────────
 function StageReady({
   repoId,
+  repoName,
   repoStats,
   question,
   setQuestion,
@@ -809,6 +820,7 @@ function StageReady({
   onNewRepo,
 }: {
   repoId: string;
+  repoName: string;
   repoStats: { indexed_node_count: number; indexed_edge_count: number; embedded_nodes: number; embeddings_exist: boolean } | undefined;
   question: string;
   setQuestion: (q: string) => void;
@@ -820,10 +832,22 @@ function StageReady({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Session-only hint: dismissed the moment user sends first ask
+  const [hintDismissed, setHintDismissed] = useState(false);
+  const hint = useMemo(() => MOVIE_QUOTES[Math.floor(Math.random() * MOVIE_QUOTES.length)], []);
+
+  const hasResult = Boolean(queryResult);
+  const showHint = !hintDismissed && !hasResult;
+
+  const handleAsk = useCallback(() => {
+    setHintDismissed(true);
+    onAsk();
+  }, [onAsk]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
-      if (!isAsking) onAsk();
+      if (!isAsking) handleAsk();
     }
   };
 
@@ -835,10 +859,12 @@ function StageReady({
       exit={{ opacity: 0, y: -24 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
-      {/* Status strip */}
+      {/* Status strip — always at top */}
       <div className="status-strip">
         <span className="status-strip-label">Active Repo</span>
-        <span className="status-strip-id">{repoId}</span>
+        <span className="status-strip-id" title={repoId}>
+          {repoName || repoId}
+        </span>
 
         {repoStats && (
           <>
@@ -853,50 +879,64 @@ function StageReady({
             </span>
           </>
         )}
-
-        <div className="status-strip-actions">
-          <button className="new-repo-btn" onClick={onNewRepo}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-              <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            New repo
-          </button>
-        </div>
       </div>
 
-      {/* Query bar */}
-      <div className="query-bar">
-        <span className="query-bar-label">Ask anything about this codebase</span>
-        <textarea
-          ref={textareaRef}
-          rows={3}
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="What does this repository do? How is authentication handled? Which functions call the database?"
-        />
-        <div className="query-bar-footer">
-          <span className="query-bar-hint">
-            Press <kbd>⌘</kbd> <kbd>Enter</kbd> to ask
-          </span>
-          <button className="ask-btn" onClick={onAsk} disabled={isAsking || !question.trim()}>
-            {isAsking ? (
-              <>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ animation: "spin-ring 1s linear infinite", transformOrigin: "center" }}>
-                  <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
-                  <path d="M12 2C6.48 2 2 6.48 2 12" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                Thinking…
-              </>
-            ) : (
-              <>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 8V12L15 15M21 12C21 16.97 16.97 21 12 21C7.03 21 3 16.97 3 12C3 7.03 7.03 3 12 3C16.97 3 21 7.03 21 12Z" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                Ask
-              </>
-            )}
-          </button>
+      {/* Query section — vertically centered before first answer, top-anchored after */}
+      <div className={`query-section${!hasResult ? " query-section-centered" : ""}`}>
+
+        {/* Movie-quote hint — fades out after first ask */}
+        <AnimatePresence>
+          {showHint && (
+            <motion.p
+              className="hint-line"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.3 }}
+            >
+              {hint}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        {/* Query bar */}
+        <div className="query-bar">
+          <span className="query-bar-label">Ask anything about this codebase</span>
+          <textarea
+            ref={textareaRef}
+            rows={3}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="What does this repository do? How is authentication handled? Which functions call the database?"
+          />
+          <div className="query-bar-footer">
+            {/* New repo — left side of footer, like ChatGPT/Claude action row */}
+            <button className="new-repo-btn" onClick={onNewRepo}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              New repo
+            </button>
+            <button className="ask-btn" onClick={handleAsk} disabled={isAsking || !question.trim()}>
+              {isAsking ? (
+                <>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ animation: "spin-ring 1s linear infinite", transformOrigin: "center" }}>
+                    <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+                    <path d="M12 2C6.48 2 2 6.48 2 12" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  Thinking…
+                </>
+              ) : (
+                <>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 8V12L15 15M21 12C21 16.97 16.97 21 12 21C7.03 21 3 16.97 3 12C3 7.03 7.03 3 12 3C16.97 3 21 7.03 21 12Z" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  Ask
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -905,7 +945,7 @@ function StageReady({
       {/* Answer card */}
       <AnimatePresence>
         {(queryResult || askError) && (
-          <AnswerPanel question={question} result={queryResult} error={askError} />
+          <AnswerPanel result={queryResult} error={askError} />
         )}
       </AnimatePresence>
 
@@ -932,6 +972,7 @@ function StageReady({
 function Dashboard() {
   const [repoId, setRepoId] = useLocalStorageState("cg.repo_id", "");
   const [jobId, setJobId] = useLocalStorageState("cg.job_id", "");
+  const [repoName, setRepoName] = useLocalStorageState("cg.repo_name", "");
   const [question, setQuestion] = useLocalStorageState("cg.question", "What does this repository do?");
   const [queryResult, setQueryResult] = useState<UnifiedQueryResult | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
@@ -967,6 +1008,10 @@ function Dashboard() {
     onSuccess: (result) => {
       setRepoId(result.repo_id);
       setJobId(result.job_id);
+      // Store the ZIP filename (without extension) as a human-readable repo name
+      if (pendingFile) {
+        setRepoName(pendingFile.name.replace(/\.zip$/i, "").replace(/[_-]/g, " "));
+      }
       setPendingFile(null);
     },
   });
@@ -999,6 +1044,7 @@ function Dashboard() {
   const handleNewRepo = () => {
     setRepoId("");
     setJobId("");
+    setRepoName("");
     setQueryResult(null);
     setQueryError(null);
     setPendingFile(null);
@@ -1034,6 +1080,7 @@ function Dashboard() {
         <StageReady
           key="stage-ready"
           repoId={repoId}
+          repoName={repoName}
           repoStats={repoStatusQ.data}
           question={question}
           setQuestion={setQuestion}
@@ -1053,6 +1100,8 @@ function Dashboard() {
 // ──────────────────────────────────────────────────────────
 function Jobs() {
   const [repoId, setRepoId] = useLocalStorageState("cg.repo_id", "");
+  const [jobId] = useLocalStorageState("cg.job_id", "");
+  const [repoName] = useLocalStorageState("cg.repo_name", "");
 
   const jobsQ = useQuery({
     queryKey: ["jobs", repoId],
@@ -1063,6 +1112,31 @@ function Jobs() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="stack">
+      {/* Technical IDs panel */}
+      {repoId && (
+        <div className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{ margin: 0, fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>
+            Session identifiers
+          </p>
+          {repoName && (
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "var(--text-3)", width: 64, flexShrink: 0 }}>Repo name</span>
+              <code style={{ fontSize: 11, color: "var(--text-2)" }}>{repoName}</code>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--text-3)", width: 64, flexShrink: 0 }}>Repo ID</span>
+            <code style={{ fontSize: 11, color: "var(--blue)", wordBreak: "break-all" }}>{repoId}</code>
+          </div>
+          {jobId && (
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "var(--text-3)", width: 64, flexShrink: 0 }}>Job ID</span>
+              <code style={{ fontSize: 11, color: "var(--text-2)", wordBreak: "break-all" }}>{jobId}</code>
+            </div>
+          )}
+        </div>
+      )}
+
       <section className="card">
         <h2>Jobs</h2>
         <label>

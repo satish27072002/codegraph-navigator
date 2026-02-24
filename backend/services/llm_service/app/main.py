@@ -328,6 +328,102 @@ def _build_graph_payload(
                 })
                 kg_edge_counter += 1
 
+        # Evidence nodes — top-scoring KG evidence items added as "evidence" type
+        evidence_items = kg_context.get("evidence", [])
+        top_evidence = sorted(
+            [e for e in evidence_items if isinstance(e, dict)],
+            key=lambda e: float(e.get("score", 0)),
+            reverse=True,
+        )[:6]
+
+        # Snapshot of code node (id, path) pairs to connect evidence to
+        code_node_paths = [
+            (nid, node.get("path"))
+            for nid, node in nodes_by_id.items()
+            if node.get("type") not in ("evidence", "concept")
+        ]
+
+        ev_edge_counter = 0
+        for ev in top_evidence:
+            chunk_id = str(ev.get("chunk_id", "")).strip()
+            text = str(ev.get("text", "")).strip()
+            doc_path = str(ev.get("doc_path", "")).strip() or None
+            if not chunk_id or not text:
+                continue
+
+            ev_node_id = f"ev_{chunk_id}"
+            if ev_node_id not in nodes_by_id:
+                label = (text[:58] + "…") if len(text) > 58 else text
+                nodes_by_id[ev_node_id] = {
+                    "id": ev_node_id,
+                    "type": "evidence",
+                    "label": label,
+                    "path": doc_path,
+                }
+
+            # Connect evidence node to its source file node (matched by path)
+            if doc_path:
+                for code_nid, code_path in code_node_paths:
+                    if code_path and code_path == doc_path:
+                        edges.append({
+                            "id": f"ev_link_{ev_edge_counter}",
+                            "source": code_nid,
+                            "target": ev_node_id,
+                            "label": "supports",
+                        })
+                        ev_edge_counter += 1
+                        break
+
+    # Snippet-based evidence nodes — always generated from highest-scoring retrieved snippets.
+    # This ensures evidence nodes appear even when KG extraction was not run during ingestion.
+    raw_snippets = retrieval_pack.get("snippets", [])
+    top_snippets = sorted(
+        [s for s in raw_snippets if isinstance(s, dict) and str(s.get("code_snippet", "")).strip()],
+        key=lambda s: float(s.get("score", 0)),
+        reverse=True,
+    )[:4]
+
+    snip_edge_counter = 0
+    for snip in top_snippets:
+        snip_id = str(snip.get("id", "")).strip()
+        code = str(snip.get("code_snippet", "")).strip()
+        path = str(snip.get("path", "")).strip() or None
+        if not snip_id or not code:
+            continue
+
+        ev_node_id = f"snip_{snip_id}"
+        if ev_node_id not in nodes_by_id:
+            label = (code[:58] + "…") if len(code) > 58 else code
+            nodes_by_id[ev_node_id] = {
+                "id": ev_node_id,
+                "type": "evidence",
+                "label": label,
+                "path": path,
+            }
+
+        # Connect evidence node to its parent code node
+        parent_id: str | None = None
+        if snip_id in nodes_by_id and nodes_by_id[snip_id].get("type") not in ("evidence", "concept"):
+            parent_id = snip_id
+        elif path:
+            for nid, node in nodes_by_id.items():
+                if (
+                    node.get("path") == path
+                    and node.get("type") not in ("evidence", "concept")
+                    and not nid.startswith(("snip_", "ev_", "kg_"))
+                ):
+                    parent_id = nid
+                    break
+
+        if parent_id:
+            edges.append({
+                "id": f"snip_link_{snip_edge_counter}",
+                "source": parent_id,
+                "target": ev_node_id,
+                "label": "supports",
+            })
+            snip_edge_counter += 1
+
     return {
         "nodes": list(nodes_by_id.values()),
         "edges": edges,

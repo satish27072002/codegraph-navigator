@@ -88,19 +88,19 @@ code, pre, kbd, .mono {
   background-image: radial-gradient(circle, #2a2a2a 1px, transparent 1px);
   background-size: 28px 28px;
   opacity: 0.45;
-  /* Mask: fade to transparent outside content column (1320px wide) */
+  /* Mask: fade to transparent outside content column (1100px wide) */
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0%,
-    black calc(50% - 660px),
-    black calc(50% + 660px),
+    black calc(50% - 550px),
+    black calc(50% + 550px),
     transparent 100%
   );
   mask-image: linear-gradient(
     to right,
     transparent 0%,
-    black calc(50% - 660px),
-    black calc(50% + 660px),
+    black calc(50% - 550px),
+    black calc(50% + 550px),
     transparent 100%
   );
 }
@@ -117,15 +117,15 @@ code, pre, kbd, .mono {
   z-index: 0;
   pointer-events: none;
 }
-.app-bg::before { left: calc(50% - 660px); }
-.app-bg::after  { right: calc(50% - 660px); }
+.app-bg::before { left: calc(50% - 550px); }
+.app-bg::after  { right: calc(50% - 550px); }
 
 /* ═══════════════════════════════════════════════════════
    TOPBAR
    ═══════════════════════════════════════════════════════ */
 .topbar,
 .content {
-  max-width: 1320px;
+  max-width: 1100px;
   margin: 0 auto;
   padding-left: 32px;
   padding-right: 32px;
@@ -152,33 +152,16 @@ code, pre, kbd, .mono {
 
 /* Bigger B&W logo */
 .topbar-logomark {
-  width: 40px;
-  height: 40px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
 }
 
-.topbar-title {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.topbar-title h1 {
-  margin: 0;
+.topbar-brand-name {
   font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--text);
-  line-height: 1.3;
-}
-
-.eyebrow {
-  margin: 0;
-  color: var(--text-3);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 9px;
-  font-weight: 500;
 }
 
 .topbar nav {
@@ -597,6 +580,42 @@ code, pre, kbd, .mono {
   background: var(--surface-2);
   color: var(--text);
   border-color: var(--text-3);
+}
+
+/* Query section — wraps hint + query bar */
+.query-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Centered state: shown before first answer (search-engine feel) */
+.query-section-centered {
+  padding-top: 14vh;
+  padding-bottom: 10vh;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+/* Movie-quote hint line above query bar */
+.hint-line {
+  text-align: center;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-3);
+  margin: 0;
+  letter-spacing: 0.01em;
+  line-height: 1.6;
+  user-select: none;
+}
+
+/* Row below query bar: new-repo action */
+.query-below-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Query bar */
@@ -1067,7 +1086,7 @@ th {
 /* ═══════════════════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════════════════ */
-@media (max-width: 1360px) {
+@media (max-width: 1140px) {
   .app-bg::before { display: none; }
   .app-bg::after  { display: none; }
   .app-grid {
