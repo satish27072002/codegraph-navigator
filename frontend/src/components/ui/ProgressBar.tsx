@@ -3,10 +3,11 @@ import { cn } from "@/lib/utils";
 
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 
-const PIPELINE_STEPS = ["INGEST", "PARSE", "LOAD_GRAPH", "EMBED", "KG_LOAD"] as const;
+const PIPELINE_STEPS = ["INGEST", "PARSE", "LOAD GRAPH", "EMBED", "KG LOAD"] as const;
 
 function stepIndex(step: string): number {
-    const idx = PIPELINE_STEPS.findIndex((s) => s === step.toUpperCase());
+    const normalized = step.toUpperCase().replace(/_/g, " ");
+    const idx = PIPELINE_STEPS.findIndex((s) => s === normalized);
     return idx >= 0 ? idx : -1;
 }
 
@@ -17,136 +18,129 @@ interface ProgressBarProps {
     error?: string | null;
 }
 
+/* ── Palette: only 3 colors ──
+   Blue  #3772FF — running/active
+   Green #307351 — completed steps
+   Red   #DF2935 — failed
+*/
+
 export function ProgressBar({ status, progress, currentStep, error }: ProgressBarProps) {
-    const isFailed = status === "failed" || !!error;
+    const isFailed    = status === "failed" || !!error;
     const isCompleted = status === "completed";
-    const isRunning = status === "running" || status === "queued";
+    const isRunning   = status === "running" || status === "queued";
     const activeStepIdx = stepIndex(currentStep);
 
     return (
         <div
-            className="w-full rounded-2xl p-5 shadow-lg mb-4"
+            className="w-full rounded-xl p-4 mb-4"
             style={{
-                background: "linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(2,6,23,0.98) 100%)",
-                border: "1px solid rgba(148,163,184,0.12)",
+                background: "#111111",
+                border: "1px solid #1f1f1f",
             }}
         >
-            {/* Header row */}
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2.5">
-                    {isCompleted && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
-                    {isFailed && <XCircle className="w-5 h-5 text-rose-400" />}
-                    {isRunning && !isFailed && <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />}
-                    {status === "queued" && !isRunning && <CircleDashed className="w-5 h-5 text-slate-500" />}
-
-                    <span className="font-bold text-sm text-slate-100 capitalize tracking-wide">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    {isCompleted && <CheckCircle2 className="w-4 h-4" style={{ color: "#307351" }} />}
+                    {isFailed    && <XCircle      className="w-4 h-4" style={{ color: "#DF2935" }} />}
+                    {isRunning && !isFailed && (
+                        <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#3772FF" }} />
+                    )}
+                    {status === "queued" && !isRunning && (
+                        <CircleDashed className="w-4 h-4" style={{ color: "#444" }} />
+                    )}
+                    <span style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: isFailed ? "#DF2935" : isCompleted ? "#3d9167" : "#f0f0f0",
+                        textTransform: "capitalize",
+                        fontFamily: "Geist, sans-serif",
+                        letterSpacing: "-0.01em",
+                    }}>
                         {status}
                     </span>
                     {currentStep && !isFailed && (
-                        <span className="text-xs text-slate-400 font-medium">
+                        <span style={{ fontSize: 12, color: "#555", fontFamily: "Geist Mono, monospace" }}>
                             — {currentStep.replace(/_/g, " ")}
                         </span>
                     )}
                 </div>
-                <span
-                    className="text-sm font-bold tabular-nums"
-                    style={{
-                        color: isFailed
-                            ? "#fb7185"
-                            : isCompleted
-                                ? "#34d399"
-                                : "#22d3ee",
-                    }}
-                >
+                <span style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontFamily: "Geist Mono, monospace",
+                    color: isFailed ? "#DF2935" : isCompleted ? "#3d9167" : "#3772FF",
+                }}>
                     {Math.round(progress)}%
                 </span>
             </div>
 
-            {/* Pipeline step indicators */}
-            <div className="flex items-center gap-1 mb-3">
+            {/* Pipeline steps — 5 segments, 2 colors only */}
+            <div className="flex items-center gap-1.5 mb-4">
                 {PIPELINE_STEPS.map((step, idx) => {
-                    const isPast = activeStepIdx > idx || isCompleted;
+                    const isPast    = activeStepIdx > idx || isCompleted;
                     const isCurrent = activeStepIdx === idx && isRunning && !isFailed;
                     return (
-                        <div key={step} className="flex-1 flex flex-col items-center gap-1">
+                        <div key={step} className="flex-1 flex flex-col items-center gap-1.5">
                             <div
                                 className={cn(
-                                    "w-full h-1 rounded-full transition-all duration-500",
-                                    isPast && "bg-emerald-400",
-                                    isCurrent && "bg-cyan-400",
-                                    !isPast && !isCurrent && "bg-slate-700",
-                                    isFailed && isCurrent && "bg-rose-400",
+                                    "w-full h-0.5 rounded-full transition-all duration-700",
+                                    isFailed && isCurrent ? "bg-[#DF2935]" :
+                                    isPast               ? "bg-[#307351]" :
+                                    isCurrent            ? "bg-[#3772FF]" :
+                                                           "bg-[#1f1f1f]",
                                 )}
-                                style={isCurrent ? { animation: "pulse 1.5s ease-in-out infinite" } : undefined}
                             />
-                            <span
-                                className={cn(
-                                    "text-[9px] font-semibold tracking-wider uppercase transition-colors",
-                                    isPast && "text-emerald-400",
-                                    isCurrent && "text-cyan-300",
-                                    !isPast && !isCurrent && "text-slate-600",
-                                    isFailed && isCurrent && "text-rose-400",
-                                )}
-                            >
-                                {step.replace(/_/g, " ")}
+                            <span style={{
+                                fontSize: 9,
+                                fontWeight: 600,
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase" as const,
+                                fontFamily: "Geist Mono, monospace",
+                                color: isFailed && isCurrent ? "#DF2935" :
+                                       isPast               ? "#307351" :
+                                       isCurrent            ? "#3772FF" :
+                                                              "#333",
+                                transition: "color 0.3s ease",
+                            }}>
+                                {step}
                             </span>
                         </div>
                     );
                 })}
             </div>
 
-            {/* Progress bar with shimmer */}
+            {/* Progress bar — single color, no rainbow */}
             <div
-                className="w-full rounded-full h-2.5 overflow-hidden"
-                style={{
-                    background: "rgba(30,41,59,0.8)",
-                    border: "1px solid rgba(148,163,184,0.08)",
-                }}
+                className="w-full rounded-full overflow-hidden"
+                style={{ height: 3, background: "#1f1f1f" }}
             >
                 <div
-                    className="h-2.5 rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+                    className="h-full rounded-full transition-all duration-700 ease-out"
                     style={{
                         width: `${Math.max(0, Math.min(100, progress))}%`,
-                        background: isFailed
-                            ? "linear-gradient(90deg, #e11d48 0%, #fb7185 100%)"
-                            : isCompleted
-                                ? "linear-gradient(90deg, #059669 0%, #34d399 100%)"
-                                : "linear-gradient(90deg, #0891b2 0%, #06b6d4 50%, #8b5cf6 100%)",
+                        background: isFailed    ? "#DF2935" :
+                                    isCompleted ? "#307351" :
+                                                  "#3772FF",
                     }}
-                >
-                    {/* Shimmer animation overlay for running state */}
-                    {isRunning && !isFailed && (
-                        <div
-                            className="absolute inset-0"
-                            style={{
-                                background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)",
-                                animation: "shimmer 1.8s ease-in-out infinite",
-                            }}
-                        />
-                    )}
-                </div>
+                />
             </div>
 
-            {/* Error message */}
+            {/* Error */}
             {error && (
                 <div
-                    className="mt-3 text-xs text-rose-300 p-3 rounded-lg"
+                    className="mt-3 text-xs p-3 rounded-lg"
                     style={{
-                        background: "rgba(225,29,72,0.08)",
-                        border: "1px solid rgba(225,29,72,0.2)",
+                        background: "rgba(223,41,53,0.07)",
+                        border: "1px solid rgba(223,41,53,0.18)",
+                        color: "#DF2935",
+                        fontFamily: "Geist Mono, monospace",
+                        fontSize: 11,
                     }}
                 >
                     {error}
                 </div>
             )}
-
-            {/* Inline CSS keyframes */}
-            <style>{`
-                @keyframes shimmer {
-                    0% { transform: translateX(-100%); }
-                    100% { transform: translateX(200%); }
-                }
-            `}</style>
         </div>
     );
 }

@@ -8,17 +8,17 @@ import { QuestionGraph } from "../types";
 // Color palette — maps our node types to Neo4j-style hex colors
 // ──────────────────────────────────────────────────────────
 const NODE_COLORS: Record<string, string> = {
-    question: "#f59e0b",   // amber
-    file:     "#10b981",   // emerald
-    class:    "#10b981",   // emerald
-    function: "#34d399",   // lighter emerald
-    code:     "#10b981",   // emerald
-    concept:  "#06b6d4",   // cyan
-    evidence: "#8b5cf6",   // violet
-    entity:   "#06b6d4",   // cyan
+    question: "#3772FF",   // Crayola Blue — question root
+    file:     "#307351",   // Turf Green   — files
+    class:    "#307351",   // Turf Green   — classes
+    function: "#3d9167",   // lighter green — functions
+    code:     "#307351",   // Turf Green   — generic code
+    concept:  "#FFCB47",   // Golden Pollen — semantic concepts
+    evidence: "#DF2935",   // Scarlet Rush  — evidence nodes
+    entity:   "#FFCB47",   // Golden Pollen — entities
 };
 
-const DEFAULT_COLOR = "#64748b"; // slate
+const DEFAULT_COLOR = "#444444"; // muted
 
 // Node sizes by type (NVL size = approximate radius)
 const NODE_SIZES: Record<string, number> = {
@@ -83,7 +83,7 @@ function toNeoRels(edges: QuestionGraph["edges"]): NeoRel[] {
             from: e.source,
             to: e.target,
             caption: e.label,
-            color: "rgba(148,163,184,0.5)",
+            color: "rgba(80,80,80,0.6)",
             width: 1.5,
         };
 
@@ -129,8 +129,8 @@ export const InteractiveQuestionGraph = memo(function InteractiveQuestionGraph({
 }: QuestionGraphViewProps) {
     useNdlTheme();
 
-    const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
-    const [sidePanelWidth, setSidePanelWidth] = useState(280);
+    const [, setIsSidePanelOpen] = useState(false);
+    const [, setSidePanelWidth] = useState(0);
 
     const neoNodes = useMemo(() => toNeoNodes(graph.nodes), [graph.nodes]);
     const neoRels  = useMemo(() => toNeoRels(graph.edges),  [graph.edges]);
@@ -189,34 +189,33 @@ export const InteractiveQuestionGraph = memo(function InteractiveQuestionGraph({
                 position: "relative",
                 borderRadius: "12px",
                 overflow: "hidden",
-                background: "#0f172a",
+                background: "#0a0a0a",
             }}
         >
             {/* Legend */}
             <div
                 style={{
                     position: "absolute",
-                    top: 12,
-                    left: 12,
+                    top: 10,
+                    left: 10,
                     zIndex: 10,
                     display: "flex",
-                    gap: 12,
-                    background: "rgba(15,23,42,0.88)",
-                    border: "1px solid rgba(148,163,184,0.15)",
-                    borderRadius: 10,
-                    padding: "8px 14px",
+                    gap: 10,
+                    background: "rgba(17,17,17,0.92)",
+                    border: "1px solid #222222",
+                    borderRadius: 8,
+                    padding: "7px 12px",
                     backdropFilter: "blur(8px)",
                     flexWrap: "wrap",
                 }}
             >
                 {legendItems.map(({ type, label, color, size }) => (
-                    <div key={type} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: "#cbd5e1" }}>
+                    <div key={type} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 500, color: "#71717a", fontFamily: "Geist, sans-serif" }}>
                         <div style={{
                             width: size,
                             height: size,
                             borderRadius: "50%",
                             background: color,
-                            boxShadow: `0 0 6px ${color}88`,
                             flexShrink: 0,
                         }} />
                         {label}
@@ -228,16 +227,13 @@ export const InteractiveQuestionGraph = memo(function InteractiveQuestionGraph({
             <div
                 style={{
                     position: "absolute",
-                    bottom: 12,
-                    left: 12,
+                    bottom: 10,
+                    left: 10,
                     zIndex: 10,
-                    fontSize: 11,
-                    color: "#64748b",
-                    background: "rgba(15,23,42,0.75)",
-                    border: "1px solid rgba(148,163,184,0.10)",
-                    borderRadius: 8,
-                    padding: "5px 10px",
-                    backdropFilter: "blur(6px)",
+                    fontSize: 10,
+                    color: "#52525b",
+                    fontFamily: "Geist, sans-serif",
+                    letterSpacing: "0.02em",
                 }}
             >
                 Scroll to zoom · Drag to pan · Click node to inspect
@@ -271,11 +267,11 @@ export const InteractiveQuestionGraph = memo(function InteractiveQuestionGraph({
                         },
                     }}
                     sidepanel={{
-                        isSidePanelOpen,
+                        isSidePanelOpen: false,
                         setIsSidePanelOpen,
                         onSidePanelResize: setSidePanelWidth,
-                        sidePanelWidth,
-                        children: <GraphVisualization.SingleSelectionSidePanelContents />,
+                        sidePanelWidth: 0,
+                        children: <></>,
                     }}
                 />
             </div>
