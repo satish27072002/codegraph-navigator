@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════
-   CODEGRAPH NAVIGATOR — Design System
+   GRAPHWISE — Design System
    Palette: Black / Turf Green / Crayola Blue / Scarlet Rush / Golden Pollen
    Font: Geist + Geist Mono
    ═══════════════════════════════════════════════════════ */
@@ -158,10 +158,14 @@ code, pre, kbd, .mono {
 }
 
 .topbar-brand-name {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--text);
+  font-size: 25px;
+  font-weight: 1000;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #ffffff 0%, #c8d6e8 50%, #e8eef6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.18));
 }
 
 .topbar nav {

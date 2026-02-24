@@ -115,7 +115,7 @@ function Shell({ children }: { children: ReactNode }) {
       <header className="topbar">
         <div className="topbar-brand">
           <LogoMark />
-          <span className="topbar-brand-name">CodeGraph Navigator</span>
+          <span className="topbar-brand-name">Graphwise</span>
         </div>
         <nav>
           <Link className={location.pathname === "/dashboard" ? "active" : ""} to="/dashboard">
@@ -970,10 +970,10 @@ function StageReady({
 // Dashboard — stage machine orchestrator
 // ──────────────────────────────────────────────────────────
 function Dashboard() {
-  const [repoId, setRepoId] = useLocalStorageState("cg.repo_id", "");
-  const [jobId, setJobId] = useLocalStorageState("cg.job_id", "");
-  const [repoName, setRepoName] = useLocalStorageState("cg.repo_name", "");
-  const [question, setQuestion] = useLocalStorageState("cg.question", "What does this repository do?");
+  const [repoId, setRepoId] = useLocalStorageState("gw.repo_id", "");
+  const [jobId, setJobId] = useLocalStorageState("gw.job_id", "");
+  const [repoName, setRepoName] = useLocalStorageState("gw.repo_name", "");
+  const [question, setQuestion] = useLocalStorageState("gw.question", "What does this repository do?");
   const [queryResult, setQueryResult] = useState<UnifiedQueryResult | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -1099,9 +1099,9 @@ function Dashboard() {
 // Jobs page (cosmetic update only)
 // ──────────────────────────────────────────────────────────
 function Jobs() {
-  const [repoId, setRepoId] = useLocalStorageState("cg.repo_id", "");
-  const [jobId] = useLocalStorageState("cg.job_id", "");
-  const [repoName] = useLocalStorageState("cg.repo_name", "");
+  const [repoId, setRepoId] = useLocalStorageState("gw.repo_id", "");
+  const [jobId] = useLocalStorageState("gw.job_id", "");
+  const [repoName] = useLocalStorageState("gw.repo_name", "");
 
   const jobsQ = useQuery({
     queryKey: ["jobs", repoId],
