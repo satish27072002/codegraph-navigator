@@ -15,7 +15,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      AZURE_APP_DIR: /opt/codegraph-navigator
+      AZURE_APP_DIR: /opt/graphwise
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +46,8 @@ jobs:
           VM_USER: ${{ secrets.AZURE_VM_USER }}
         run: |
           rsync -az --delete \
+            --exclude '.env' \
+            --exclude '.env.backup' \
             --exclude '.git' \
             --exclude 'frontend/node_modules' \
             --exclude 'frontend/.next' \
@@ -53,19 +55,6 @@ jobs:
             --exclude 'data' \
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ "${VM_USER}@${VM_HOST}:${AZURE_APP_DIR}"
-
-      - name: Write .env on VM
-        if: steps.precheck.outputs.ready == 'true'
-        env:
-          VM_HOST: ${{ secrets.AZURE_VM_HOST }}
-          VM_USER: ${{ secrets.AZURE_VM_USER }}
-          APP_ENV_FILE: ${{ secrets.AZURE_APP_ENV }}
-        run: |
-          if [ -n "${APP_ENV_FILE:-}" ]; then
-            printf '%s\n' "${APP_ENV_FILE}" | ssh -o StrictHostKeyChecking=no "${VM_USER}@${VM_HOST}" "cat > ${AZURE_APP_DIR}/.env"
-          else
-            echo "AZURE_APP_ENV secret is empty; skipping .env write."
-          fi
 
       - name: Deploy containers
         if: steps.precheck.outputs.ready == 'true'
@@ -75,7 +64,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no "${VM_USER}@${VM_HOST}" <<'EOFSSH'
             set -euo pipefail
-            cd /opt/codegraph-navigator
+            cd "${AZURE_APP_DIR}"
             docker compose --env-file .env -f infra/docker-compose.yml pull || true
             docker compose --env-file .env -f infra/docker-compose.yml up -d --build --remove-orphans
             docker compose --env-file .env -f infra/docker-compose.yml ps

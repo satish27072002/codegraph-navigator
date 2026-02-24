@@ -87,8 +87,10 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
     environment:
-      VITE_API_BASE: ${VITE_API_BASE:-}
+      VITE_API_BASE: ${VITE_API_BASE:-/api}
     depends_on:
       api_gateway:
         condition: service_healthy
@@ -100,6 +102,21 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - api_gateway
 
   graph_service:
     build:
@@ -228,3 +245,5 @@ services:
 volumes:
   postgres_data:
   neo4j_data:
+  caddy_data:
+  caddy_config:
